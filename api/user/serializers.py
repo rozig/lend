@@ -5,9 +5,9 @@ from app.models import User
 
 
 class UserSerializer(serializers.ModelSerializer):
-    '''
-    Serializer class for User model
-    '''
+    """
+    Create serializer class for User model
+    """
     username = serializers.CharField(
         validators=[UniqueValidator(queryset=User.objects.all())])
     email = serializers.EmailField(
@@ -26,4 +26,20 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'avatar',
             'password'
+        ]
+
+
+class UserDetailSerializer(serializers.ModelSerializer):
+    """
+    Retrieve serializer class for User model
+    """
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'first_name',
+            'last_name',
+            'username',
+            'email',
+            'avatar'
         ]
