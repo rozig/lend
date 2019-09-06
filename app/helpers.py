@@ -28,13 +28,13 @@ def is_eligible_lender(amount, length, score, num_of_loans):
     if amount > 50000 or amount < 500:
         return {
             'eligible': False,
-            'reason': MESSAGES.get('')
+            'reason': MESSAGES.get('WRONG_LOAN_AMOUNT')
         }
 
     if length > 96 or length < 6:
         return {
             'eligible': False,
-            'reason': MESSAGES.get('')
+            'reason': MESSAGES.get('WRONG_LOAN_LENGTH')
         }
 
     if num_of_loans <= 5:
@@ -66,7 +66,7 @@ def check_eligibility(amount, length, _type):
 
         return {
             'eligible': False,
-            'reason': MESSAGES.get('')
+            'reason': MESSAGES.get('NON_ELIGIBLE_REQUEST')
         }
     elif _type == 'bronze':
         if 500 <= amount <= 10000 and 6 <= length <= 48:
@@ -82,7 +82,7 @@ def check_eligibility(amount, length, _type):
             }
         return {
             'eligible': False,
-            'reason': MESSAGES.get('')
+            'reason': MESSAGES.get('NON_ELIGIBLE_REQUEST')
         }
     elif _type == 'silver':
         if 500 <= amount <= 30000 and 6 <= length < 72:
@@ -98,7 +98,7 @@ def check_eligibility(amount, length, _type):
             }
         return {
             'eligible': False,
-            'reason': MESSAGES.get('')
+            'reason': MESSAGES.get('NON_ELIGIBLE_REQUEST')
         }
     elif _type == 'gold':
         if 500 <= amount <= 50000 and 6 <= length < 96:
@@ -114,12 +114,12 @@ def check_eligibility(amount, length, _type):
             }
         return {
             'eligible': False,
-            'reason': MESSAGES.get('')
+            'reason': MESSAGES.get('NON_ELIGIBLE_REQUEST')
         }
     else:
         return {
             'eligible': False,
-            'reason': MESSAGES.get('')
+            'reason': MESSAGES.get('WRONG_SCORE_TYPE')
         }
 
 
