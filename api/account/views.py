@@ -25,7 +25,7 @@ class AccountView(APIView):
         account = Account.objects.filter(user=user)
         if account.exists():
             return Response({
-                'detail': MESSAGES.get('')
+                'detail': MESSAGES.get('ACCOUNT_EXISTS')
             }, status=status.HTTP_400_BAD_REQUEST)
 
         account_number = generate_account_number()
@@ -38,15 +38,10 @@ class AccountView(APIView):
     def get(self, request):
         user = request.user
 
-        if not user:
-            return Response({
-                'detail': MESSAGES.get('')
-            }, status=status.HTTP_400_BAD_REQUEST)
-
         account = Account.objects.filter(user=user)
         if not account.exists():
             return Response({
-                'detail': MESSAGES.get('')
+                'detail': MESSAGES.get('ACCOUNT_DOES_NOT_EXIST')
             }, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.serializer_class(account.first())
@@ -66,7 +61,7 @@ class ActivityView(generics.ListAPIView):
     def get(self, request, account_number=None):
         if not account_number:
             return Response({
-                'detail': MESSAGES.get('')
+                'detail': MESSAGES.get('URL_PARAM_MISSING')
             }, status=status.HTTP_400_BAD_REQUEST)
 
         transactions = self.get_queryset().filter(account=account_number)
