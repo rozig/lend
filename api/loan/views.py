@@ -6,11 +6,11 @@ from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from api.loan.serializers import LoanListSerializer, PaymentListSerializer
+from api.loan.serializers import LoanDetailSerializer, PaymentDetailSerializer
 from app.constants import MESSAGES
 from app.core.paginations import StandardResultsSetPagination
-from app.helpers import add_months, is_eligible_lender
-from app.models import Loan, LoanProfile, LoanPayment
+from app.helpers import add_months, generate_transaction_id, is_eligible_lender
+from app.models import Account, Loan, LoanProfile, LoanPayment, Transaction
 
 
 class LoanView(generics.ListCreateAPIView):
@@ -19,7 +19,7 @@ class LoanView(generics.ListCreateAPIView):
     """
     authentication_classes = (TokenAuthentication, )
     permission_classes = (IsAuthenticated, )
-    serializer_class = LoanListSerializer
+    serializer_class = LoanDetailSerializer
     pagination_class = StandardResultsSetPagination
     queryset = Loan.objects.all()
 
@@ -31,30 +31,30 @@ class LoanView(generics.ListCreateAPIView):
         errors = {}
 
         if not requested_amount:
-            errors['amount'] = [MESSAGES.get('')]
+            errors['amount'] = [MESSAGES.get('FIELD_REQUIRED').format('This field')]
 
         if not requested_length:
-            errors['length'] = [MESSAGES.get('')]
+            errors['length'] = [MESSAGES.get('FIELD_REQUIRED').format('This field')]
 
         loan_profile = LoanProfile.objects.filter(user=user)
         if loan_profile.exists():
             loan_profile = loan_profile.first()
-            loan_finished = True
             loans = self.get_queryset().prefetch_related('loanpayment_set').filter(user=user)
 
             for loan in loans:
+                loan_finished = True
                 total_amount = loan.amount + (loan.amount * loan.interest_rate / 100)
                 amount = 0
-                for payment in loan.loanpayments_set.all():
-                    amount += payment.amount
 
+                for payment in loan.loanpayment_set.all():
+                    amount += payment.amount
                 if total_amount > amount:
                     loan_finished = False
 
-            if not loan_finished:
-                return Response({
-                    'detail': MESSAGES.get('')
-                }, status=status.HTTP_400_BAD_REQUEST)
+                if not loan_finished:
+                    return Response({
+                        'detail': MESSAGES.get('UNPAID_LOAN')
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
             num_of_loans = len(loans)
         else:
@@ -83,6 +83,18 @@ class LoanView(generics.ListCreateAPIView):
             status='ongoing',
             deadline=deadline)
 
+        account = Account.objects.get(user=user)
+        account.balance += requested_amount
+        account.updated_at = datetime.datetime.now()
+        account.save()
+
+        Transaction.objects.create(
+            id=generate_transaction_id(),
+            type='loan',
+            amount=requested_amount,
+            description='LOAN FOR {} {}'.format(user.first_name, user.last_name),
+            account=account)
+
         payment_deadline = add_months(today, 1)
 
         payment_amount = requested_amount
@@ -101,6 +113,7 @@ class LoanView(generics.ListCreateAPIView):
             'monthly_payment_amount': payment_amount,
             'loan_length': requested_length,
             'loan_amount': requested_amount,
+            'interest_rate': eligibility['interest_rate'],
             'next_payment_date': payment_deadline,
             'loan_deadline': deadline
         })
@@ -119,7 +132,7 @@ class PaymentView(generics.ListCreateAPIView):
     """
     authentication_classes = (TokenAuthentication, )
     permission_classes = (IsAuthenticated, )
-    serializer_class = PaymentListSerializer
+    serializer_class = PaymentDetailSerializer
     pagination_class = StandardResultsSetPagination
     queryset = LoanPayment.objects.all()
 
@@ -128,36 +141,69 @@ class PaymentView(generics.ListCreateAPIView):
         loan = Loan.objects.filter(pk=loan_id).prefetch_related('loanpayment_set')
         if not loan.exists():
             return Response({
-                'detail': MESSAGES.get('')
+                'detail': MESSAGES.get('NOT_FOUND').format('Loan')
             }, status=status.HTTP_404_NOT_FOUND)
 
         loan = loan.first()
         if not loan.user == user:
             return Response({
-                'detail': MESSAGES.get('')
+                'detail': MESSAGES.get('NOT_LOAN_OWNER')
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if loan.status == 'paid':
+            return Response({
+                'detail': MESSAGES.get('LOAN_ALREADY_PAID')
             }, status=status.HTTP_400_BAD_REQUEST)
 
         payment = loan.loanpayment_set.filter(status='pending')
 
-        if payment.exists():
-            payment = payment.first()
-            payment.payment_date = datetime.date.today()
-            payment.status = 'paid'
-            payment.save()
+        if not payment.exists():
+            return Response({
+                'detail': MESSAGES.get('LOAN_ALREADY_PAID')
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        LoanPayment.objects.create(
-            loan=loan,
-            amount=payment.amount,
-            status='pending',
-            payment_date=None,
-            deadline=add_months(payment.deadline))
+        payment = payment.first()
+        payment.payment_date = datetime.datetime.now()
+        payment.status = 'paid'
+        payment.save()
+
+        loan_profile = LoanProfile.objects.filter(user=user)
+        loan_profile = loan_profile.first() \
+            if loan_profile.exists() \
+            else LoanProfile(user=user, score=0)
+        today = datetime.date.today()
+        if payment.deadline < today:
+            loan_profile.score -= 3
+        else:
+            loan_profile.score += 1
+        loan_profile.save()
+
+        total_payment = 0
+        for pm in loan.loanpayment_set.all():
+            total_payment += pm.amount
+
+        serializer = self.serializer_class(payment)
+        response_data = serializer.data
+        if total_payment >= (loan.amount + loan.amount * loan.interest_rate / 100):
+            loan.status = 'paid'
+            loan.save()
+        else:
+            LoanPayment.objects.create(
+                loan=loan,
+                amount=payment.amount,
+                status='pending',
+                payment_date=None,
+                deadline=add_months(payment.deadline, 1))
+
+        response_data['loan_status'] = loan.status
+        return Response(response_data)
 
     def get(self, request, loan_id=None):
         if not loan_id:
             return Response({
-                'detail': MESSAGES.get('')
+                'detail': MESSAGES.get('URL_PARAM_MISSING')
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        payments = self.get_queryset().filter(loan=loan_id)
+        payments = self.get_queryset().filter(loan=loan_id).order_by('-created_at')
         serializer = self.serializer_class(payments, many=True)
         return self.get_paginated_response(self.paginate_queryset(serializer.data))

@@ -4,7 +4,7 @@ from rest_framework import serializers
 from app.models import Loan, LoanPayment
 
 
-class LoanListSerializer(serializers.ModelSerializer):
+class LoanDetailSerializer(serializers.ModelSerializer):
     """
     List serializer class for Loan model
     """
@@ -15,11 +15,13 @@ class LoanListSerializer(serializers.ModelSerializer):
             'id',
             'amount',
             'interest_rate',
-            'deadline'
+            'status',
+            'deadline',
+            'created_at'
         ]
 
 
-class PaymentListSerializer(serializers.ModelSerializer):
+class PaymentDetailSerializer(serializers.ModelSerializer):
     """
     List serializer class for Loan Payment model
     """
