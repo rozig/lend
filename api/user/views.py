@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from api.user.serializers import UserSerializer, UserDetailSerializer
 from app.constants import MESSAGES
 from app.helpers import generate_account_number
-from app.models import Account, User
+from app.models import Account, Loan, LoanProfile, User
 
 
 class SignupView(APIView):
@@ -41,8 +41,15 @@ class UserInfoView(APIView):
 
         if not user:
             return Response({
-                'detail': MESSAGES.get('')
+                'detail': MESSAGES.get('NOT_FOUND').format('user')
             }, status=status.HTTP_404_NOT_FOUND)
 
+        loan_profile = LoanProfile.objects.filter(user=user)
+        num_of_loans = len(Loan.objects.filter(user=user))
+
         serializer = self.serializer_class(user)
-        return Response(serializer.data)
+        response_data = serializer.data
+        response_data['lend_score'] = loan_profile.first().score \
+            if loan_profile.exists() else None
+        response_data['num_of_loans'] = num_of_loans
+        return Response(response_data)
