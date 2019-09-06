@@ -7,7 +7,7 @@ class BaseModel(models.Model):
     BaseModel class including base fields
     """
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(null=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         abstract = True
