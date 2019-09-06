@@ -46,7 +46,7 @@ class LoanView(generics.ListCreateAPIView):
                 total_amount = loan.amount + (loan.amount * loan.interest_rate / 100)
                 amount = 0
 
-                for payment in loan.loanpayment_set.all():
+                for payment in loan.loanpayment_set.filter(status='paid'):
                     amount += payment.amount
                 if total_amount > amount:
                     loan_finished = False

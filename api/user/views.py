@@ -47,7 +47,7 @@ class UserInfoView(APIView):
         loan_profile = LoanProfile.objects.filter(user=user)
         num_of_loans = len(Loan.objects.filter(user=user))
 
-        serializer = self.serializer_class(user)
+        serializer = self.serializer_class(user, context={'request': request})
         response_data = serializer.data
         response_data['lend_score'] = loan_profile.first().score \
             if loan_profile.exists() else None
